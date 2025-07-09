@@ -1,0 +1,65 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "input-tools",
+  "title": "Input Tools",
+  "description": "Type in any language and get suggestions from Google InputTools API.",
+  "icon": "🀄",
+  "author": "timescam",
+  "license": "GPL-3.0-only",
+  "commands": [
+    {
+      "name": "input-tools",
+      "title": "廣東話輸入法",
+      "description": "Provides Cantonese suggestions for English input.",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "copyMode",
+      "title": "Mode",
+      "description": "Select the mode for the extension.",
+      "type": "dropdown",
+      "defaultValue": "copy",
+      "data": [
+        {
+          "value": "copy",
+          "title": "Copy"
+        },
+        {
+          "value": "copyPaste",
+          "title": "Copy & Paste"
+        }
+      ]
+    },
+    {
+      "name": "simplifiedChinese",
+      "title": "Simplified Chinese",
+      "description": "Provide simplified Chinese suggestions.",
+      "type": "checkbox",
+      "defaultValue": false
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.100.3",
+    "@raycast/utils": "^2.1.1",
+    "opencc-js": "^1.0.5"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "22.13.10",
+    "@types/opencc-js": "^1.0.3",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
