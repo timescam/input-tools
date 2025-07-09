@@ -350,6 +350,7 @@ export default function InputTools() {
             key={suggestion.id}
             title={suggestion.text}
             accessories={[{ text: suggestion.index.toString() }]}
+            icon={{ source: Icon[`Number0${suggestion.index}` as keyof typeof Icon] }}
             actions={
               <ActionPanel>
                 <Action
