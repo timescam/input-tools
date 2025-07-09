@@ -1,6 +1,4 @@
 // Pre-compiled regex for better performance
-const CHINESE_REGEX = /[\u4e00-\u9fff]/g;
-const NUMERIC_REGEX = /[0-9]/g;
 const JSONP_MATCH_REGEX = /\((.+)\)$/;
 const JSONP_ALT_MATCH_REGEX = /.*?\((.+)\)$/;
 
@@ -49,26 +47,21 @@ export function parseSuggestionsResponse(jsonpText: string): string[] {
   return suggestions;
 }
 
-// Optimized: Extract Chinese characters and English from text in single pass
 export const separateChineseAndEnglish = (text: string) => {
   if (!text) return { chinese: "", english: "" };
   
   let chinese = "";
   let english = "";
-  
-  // Single pass through the string instead of multiple regex operations
-  for (const char of text) {
-    if (CHINESE_REGEX.test(char)) {
-      chinese += char;
-      // Reset regex lastIndex since we're reusing it
-      CHINESE_REGEX.lastIndex = 0;
-    } else if (!NUMERIC_REGEX.test(char)) {
-      english += char;
-      // Reset regex lastIndex since we're reusing it
-      NUMERIC_REGEX.lastIndex = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x4e00 && code <= 0x9fff) {
+      chinese += text[i];
+    } else if (code < 48 || code > 57) { // not 0-9
+      english += text[i];
     }
   }
-  
+
   return { chinese, english };
 };
 
