@@ -18,11 +18,21 @@ interface Preferences {
 // Constants
 const SUGGESTIONS_PER_PAGE = 6;
 const DEBOUNCE_DELAY = 200;
-const INITIAL_DEBOUNCE_DELAY = 100; // New constant for initial debounce
+const INITIAL_DEBOUNCE_DELAY = 100;
 const SELECTION_REGEX = /^(.*?)([1-6]|9|0)$/;
 
 // Pre-compiled number parsing for better performance
 const NUMERIC_KEYS = new Set(["1", "2", "3", "4", "5", "6", "9", "0"]);
+
+// Pre-computed icon mapping for better performance
+const NUMBER_ICONS = {
+  1: Icon.Number01,
+  2: Icon.Number02,
+  3: Icon.Number03,
+  4: Icon.Number04,
+  5: Icon.Number05,
+  6: Icon.Number06,
+} as const;
 
 // Custom hook for debouncing with cleanup optimization
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -61,38 +71,65 @@ const useOpenCCConverter = (enabled: boolean) => {
   }, [enabled]);
 };
 
-// Enhanced pagination hook with better memoization
-const usePagination = (totalItems: number, itemsPerPage: number, currentPage: number) => {
+// Split pagination calculations for better memoization
+const usePaginationCalculations = (totalItems: number, itemsPerPage: number) => {
   return useMemo(() => {
-    const safeItemsPerPage = Math.max(1, itemsPerPage); // Ensure at least 1 item per page
+    const safeItemsPerPage = Math.max(1, itemsPerPage);
     const totalPages = Math.max(1, Math.ceil(totalItems / safeItemsPerPage));
+    return { safeItemsPerPage, totalPages };
+  }, [totalItems, itemsPerPage]);
+};
+
+const usePaginationState = (currentPage: number, totalPages: number, safeItemsPerPage: number) => {
+  return useMemo(() => {
     const safePage = Math.min(currentPage, totalPages - 1);
     const hasNextPage = safePage < totalPages - 1;
     const hasPreviousPage = safePage > 0;
+    const startIndex = safePage * safeItemsPerPage;
+    const endIndex = (safePage + 1) * safeItemsPerPage;
 
     return {
-      totalPages,
       hasNextPage,
       hasPreviousPage,
-      startIndex: safePage * safeItemsPerPage,
-      endIndex: (safePage + 1) * safeItemsPerPage,
+      startIndex,
+      endIndex,
       currentPage: safePage,
     };
-  }, [totalItems, itemsPerPage, currentPage]);
+  }, [currentPage, totalPages, safeItemsPerPage]);
+};
+
+// Memoized text conversion for expensive operations
+const useTextConversion = (preferences: Preferences, converter: ((text: string) => string) | null) => {
+  return useCallback(
+    (text: string): string => {
+      if (!preferences.simplifiedChinese || !converter || !text) {
+        return text;
+      }
+
+      try {
+        return converter(text);
+      } catch (error) {
+        console.error("Text conversion failed:", error);
+        return text;
+      }
+    },
+    [preferences.simplifiedChinese, converter],
+  );
 };
 
 export default function InputTools() {
   const preferences = getPreferenceValues<Preferences>();
   const [searchText, setSearchText] = useState("");
-  const [hasSelectedSuggestion, setHasSelectedSuggestion] = useState(false); // New state variable
+  const [hasSelectedSuggestion, setHasSelectedSuggestion] = useState(false);
   const debouncedSearchText = useDebounce(
     searchText,
-    hasSelectedSuggestion ? DEBOUNCE_DELAY : INITIAL_DEBOUNCE_DELAY, // Dynamic debounce delay
+    hasSelectedSuggestion ? DEBOUNCE_DELAY : INITIAL_DEBOUNCE_DELAY,
   );
   const [currentPage, setCurrentPage] = useState(0);
 
   // Custom hook for OpenCC conversion
   const converter = useOpenCCConverter(preferences.simplifiedChinese);
+  const convertIfNeeded = useTextConversion(preferences, converter);
 
   // Reset page when search text changes
   useEffect(() => {
@@ -135,43 +172,27 @@ export default function InputTools() {
     },
   });
 
-  // Enhanced pagination logic
-  const pagination = usePagination(suggestions?.length || 0, SUGGESTIONS_PER_PAGE, currentPage);
+  // Split pagination calculations for better performance
+  const { safeItemsPerPage, totalPages } = usePaginationCalculations(suggestions?.length || 0, SUGGESTIONS_PER_PAGE);
+  const pagination = usePaginationState(currentPage, totalPages, safeItemsPerPage);
 
-  // Optimized paginated suggestions with stable IDs
+  // Optimized paginated suggestions with simpler ID generation
   const paginatedSuggestions = useMemo(() => {
     if (!suggestions?.length) return [];
 
     return suggestions.slice(pagination.startIndex, pagination.endIndex).map((text: string, index: number) => ({
-      id: `page-${pagination.currentPage}-item-${index}`, // More stable ID
+      id: String(pagination.currentPage * 1000 + index), // Simpler numeric ID as string
       text,
       index: index + 1,
     }));
   }, [suggestions, pagination.startIndex, pagination.endIndex, pagination.currentPage]);
 
-  // Optimized text conversion with error handling
-  const convertIfNeeded = useCallback(
-    (text: string): string => {
-      if (!preferences.simplifiedChinese || !converter || !text) {
-        return text;
-      }
-
-      try {
-        return converter(text);
-      } catch (error) {
-        console.error("Text conversion failed:", error);
-        return text; // Fallback to original text
-      }
-    },
-    [preferences.simplifiedChinese, converter],
-  );
-
   // Navigation functions with state validation
   const goToNextPage = useCallback(() => {
     if (pagination.hasNextPage) {
-      setCurrentPage((prev) => Math.min(prev + 1, pagination.totalPages - 1));
+      setCurrentPage((prev) => Math.min(prev + 1, totalPages - 1));
     }
-  }, [pagination.hasNextPage, pagination.totalPages]);
+  }, [pagination.hasNextPage, totalPages]);
 
   const goToPreviousPage = useCallback(() => {
     if (pagination.hasPreviousPage) {
@@ -187,7 +208,7 @@ export default function InputTools() {
 
       // Update search text immediately for better UX
       setSearchText(newText);
-      setHasSelectedSuggestion(true); // Set to true after a suggestion is selected
+      setHasSelectedSuggestion(true);
 
       // Clear suggestions optimistically
       mutate(Promise.resolve([]), {
@@ -241,8 +262,6 @@ export default function InputTools() {
       paginatedSuggestions,
       pagination.hasNextPage,
       pagination.hasPreviousPage,
-      pagination.currentPage,
-      pagination.totalPages,
       goToNextPage,
       goToPreviousPage,
       handleSuggestionSelect,
@@ -270,6 +289,9 @@ export default function InputTools() {
     [handleNumericAction],
   );
 
+  // Memoized converted text to avoid repeated conversions
+  const convertedSearchText = useMemo(() => convertIfNeeded(searchText), [convertIfNeeded, searchText]);
+
   // Memoized action panels with better dependency tracking
   const inputPreviewActions = useMemo(
     () => (
@@ -277,16 +299,16 @@ export default function InputTools() {
         {preferences.copyMode === "copyPaste" && (
           <Action.Paste
             title="Paste"
-            content={convertIfNeeded(searchText)}
+            content={convertedSearchText}
             onPaste={() => {
-              Clipboard.copy(convertIfNeeded(searchText));
+              Clipboard.copy(convertedSearchText);
             }}
           />
         )}
-        <Action.CopyToClipboard title="Copy" content={convertIfNeeded(searchText)} icon={Icon.Clipboard} />
+        <Action.CopyToClipboard title="Copy" content={convertedSearchText} icon={Icon.Clipboard} />
       </ActionPanel>
     ),
-    [preferences.copyMode, searchText, convertIfNeeded],
+    [preferences.copyMode, convertedSearchText],
   );
 
   // Stable action panels for navigation
@@ -304,6 +326,20 @@ export default function InputTools() {
       ),
     }),
     [goToPreviousPage, goToNextPage],
+  );
+
+  // Memoized suggestion action for better performance
+  const createSuggestionAction = useCallback(
+    (suggestion: Suggestion) => (
+      <ActionPanel>
+        <Action
+          title="Select"
+          onAction={() => handleSuggestionSelect(suggestion)}
+          shortcut={{ modifiers: [], key: suggestion.index.toString() as "1" | "2" | "3" | "4" | "5" | "6" }}
+        />
+      </ActionPanel>
+    ),
+    [handleSuggestionSelect],
   );
 
   return (
@@ -350,23 +386,15 @@ export default function InputTools() {
             key={suggestion.id}
             title={suggestion.text}
             accessories={[{ text: suggestion.index.toString() }]}
-            icon={{ source: Icon[`Number0${suggestion.index}` as keyof typeof Icon] }}
-            actions={
-              <ActionPanel>
-                <Action
-                  title="Select"
-                  onAction={() => handleSuggestionSelect(suggestion)}
-                  shortcut={{ modifiers: [], key: suggestion.index.toString() as any }}
-                />
-              </ActionPanel>
-            }
+            icon={{ source: NUMBER_ICONS[suggestion.index as keyof typeof NUMBER_ICONS] }}
+            actions={createSuggestionAction(suggestion)}
           />
         ))}
 
       {/* Next page navigation */}
       {pagination.hasNextPage && (
         <List.Item
-          title={`${pagination.currentPage + 1}/${pagination.totalPages}`}
+          title={`${pagination.currentPage + 1}/${totalPages}`}
           accessories={[{ text: "0" }]}
           icon={{ source: Icon.ArrowDown, tintColor: Color.Green }}
           actions={navigationActions.next}

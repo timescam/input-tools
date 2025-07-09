@@ -18,7 +18,7 @@ export function parseSuggestionsResponse(jsonpText: string): string[] {
   let jsonData: unknown;
   try {
     jsonData = JSON.parse(match[1]);
-  } catch (parseError) {
+  } catch {
     throw new Error("Failed to parse JSON response");
   }
 
@@ -47,22 +47,26 @@ export function parseSuggestionsResponse(jsonpText: string): string[] {
   return suggestions;
 }
 
+// Optimized string separation using array-based approach
 export const separateChineseAndEnglish = (text: string) => {
   if (!text) return { chinese: "", english: "" };
   
-  let chinese = "";
-  let english = "";
+  const chineseChars: string[] = [];
+  const englishChars: string[] = [];
 
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     if (code >= 0x4e00 && code <= 0x9fff) {
-      chinese += text[i];
+      chineseChars.push(text[i]);
     } else if (code < 48 || code > 57) { // not 0-9
-      english += text[i];
+      englishChars.push(text[i]);
     }
   }
 
-  return { chinese, english };
+  return { 
+    chinese: chineseChars.join(""), 
+    english: englishChars.join("") 
+  };
 };
 
 // Cache for URL generation to avoid repeated encoding
